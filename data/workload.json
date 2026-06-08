@@ -1,0 +1,8 @@
+[
+ {
+  "employee_id":"EMP001",
+  "meeting_hours":20,
+  "focus_hours":12,
+  "preferred_slot":"Morning"
+ }
+]
