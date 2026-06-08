@@ -1,8 +1,32 @@
 [
- {
-  "employee_id":"EMP001",
-  "meeting_hours":20,
-  "focus_hours":12,
-  "preferred_slot":"Morning"
- }
+  {
+    "employee_id": "EMP-001",
+    "meeting_hours": 22,
+    "focus_hours": 10,
+    "preferred_slot": "Morning"
+  },
+  {
+    "employee_id": "EMP-002",
+    "meeting_hours": 15,
+    "focus_hours": 18,
+    "preferred_slot": "Afternoon"
+  },
+  {
+    "employee_id": "EMP-003",
+    "meeting_hours": 18,
+    "focus_hours": 15,
+    "preferred_slot": "Morning"
+  },
+  {
+    "employee_id": "EMP-004",
+    "meeting_hours": 12,
+    "focus_hours": 20,
+    "preferred_slot": "Afternoon"
+  },
+  {
+    "employee_id": "EMP-005",
+    "meeting_hours": 25,
+    "focus_hours": 8,
+    "preferred_slot": "Early Morning"
+  }
 ]

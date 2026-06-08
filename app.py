@@ -1,428 +1,357 @@
-"""
-CertPilot Streamlit Application
-Multi-page app with Employee View and Manager View
-"""
+"""CertPilot X - enterprise certification intelligence dashboard."""
 
-import streamlit as st
+from __future__ import annotations
+
+from datetime import date, timedelta
+from typing import Any
+
 import pandas as pd
-import plotly.graph_objects as go
 import plotly.express as px
-from datetime import datetime, timedelta
-import json
+import plotly.graph_objects as go
+import streamlit as st
 
-# Import agents
-from agents.curator_agent import CuratorAgent
-from agents.planner_agent import PlannerAgent
-from agents.engagement_agent import EngagementAgent
-from agents.assessment_agent import AssessmentAgent
-from agents.predictor_agent import PredictorAgent
-from agents.manager_agent import ManagerAgent
-from agents.critic_agent import CriticAgent
+from core.config import load_settings
+from core.data_access import SyntheticDataRepository
+from core.models import WorkflowRequest, WorkflowResult
+from core.validators import ValidationError
+from evaluation.runner import EvaluationRunner
+from orchestrator.workflow import CertificationWorkflowOrchestrator
 
-# Initialize agents
-@st.cache_resource
-def initialize_agents():
-    return {
-        "curator": CuratorAgent(),
-        "planner": PlannerAgent(),
-        "engagement": EngagementAgent(),
-        "assessment": AssessmentAgent(),
-        "predictor": PredictorAgent(),
-        "manager": ManagerAgent(),
-        "critic": CriticAgent()
-    }
 
-agents = initialize_agents()
-
-# Page configuration
 st.set_page_config(
-    page_title="CertPilot - Certification Success Platform",
+    page_title="CertPilot X",
     page_icon="🎯",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# Custom CSS
-st.markdown("""
-<style>
-    .metric-card {
-        background-color: #f0f2f6;
-        padding: 20px;
-        border-radius: 10px;
-        margin: 10px 0;
-    }
-    .success {
-        color: #09ab3b;
-        font-weight: bold;
-    }
-    .warning {
-        color: #ff9500;
-        font-weight: bold;
-    }
-    .danger {
-        color: #ff2b2b;
-        font-weight: bold;
-    }
-</style>
-""", unsafe_allow_html=True)
 
-def employee_view():
-    """Employee View - Individual certification path"""
-    st.title("👤 Employee View - Certification Roadmap")
-    st.markdown("Get your personalized certification success plan")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("📋 Your Information")
-        learner_id = st.text_input("Learner ID", "L1001")
-        role = st.selectbox("Your Role", ["Data Engineer", "Cloud Architect", "DevOps Engineer", "AI/ML Specialist"])
-        
-    with col2:
-        st.subheader("⏱️ Availability")
-        hours_per_week = st.slider("Study hours per week", 1, 20, 5)
-        meeting_hours = st.slider("Meeting hours per week", 0, 40, 20)
-        focus_hours = st.slider("Focus hours per week", 0, 40, 12)
-    
-    exam_date = st.date_input("Target Exam Date", datetime.now() + timedelta(days=60))
-    
-    if st.button("🚀 Generate My Certification Plan", key="employee_generate"):
-        st.session_state.employee_generated = True
-    
-    if st.session_state.get("employee_generated", False):
-        st.divider()
-        
-        # Step 1: Curator - Learning Path
-        with st.spinner("🎯 Building your learning path..."):
-            curator_output = agents["curator"].curate_learning_path(role)
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("📚 Learning Path")
-                st.metric("Certification", curator_output.get("certification", "N/A"))
-                st.info("**Required Skills:**\n" + "\n".join([f"✓ {skill}" for skill in curator_output.get("skills", [])]))
-            
-            with col2:
-                st.subheader("📦 Resources")
-                resources = curator_output.get("resources", [])
-                for i, resource in enumerate(resources, 1):
-                    st.write(f"{i}. {resource}")
-        
-        # Step 2: Planner - Study Schedule
-        with st.spinner("📅 Creating your study schedule..."):
-            planner_output = agents["planner"].create_study_plan(
-                hours_per_week=hours_per_week,
-                exam_date=exam_date.strftime("%Y-%m-%d")
-            )
-            
-            st.subheader("📅 Your Study Schedule")
-            
-            schedule_data = []
-            for week in planner_output["weekly_schedule"][:4]:  # Show first 4 weeks
-                schedule_data.append({
-                    "Week": week["week"],
-                    "Topic": week["topic"],
-                    "Hours": week["hours"],
-                    "Milestones": ", ".join(week["milestones"][:2])
-                })
-            
-            df_schedule = pd.DataFrame(schedule_data)
-            st.dataframe(df_schedule, use_container_width=True)
-        
-        # Step 3: Engagement - Work-Life Balance
-        with st.spinner("⚖️ Analyzing your work-life balance (Work IQ)..."):
-            engagement_output = agents["engagement"].analyze_workload(meeting_hours, focus_hours)
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                risk_color = {"LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🔴"}
-                st.metric("Risk Level", f"{risk_color.get(engagement_output['risk_level'], '⚪')} {engagement_output['risk_level']}")
-            
-            with col2:
-                study_window = agents["engagement"].find_study_window(meeting_hours)
-                st.metric("Best Study Window", study_window)
-            
-            with col3:
-                st.metric("Weekly Work Hours", f"{meeting_hours + focus_hours}h")
-            
-            st.warning(f"💡 {engagement_output['recommendation']}")
-        
-        # Step 4: Assessment - Current Knowledge
-        with st.spinner("📝 Generating practice questions..."):
-            practice_questions = agents["assessment"].generate_practice_questions(count=3)
-            
-            st.subheader("📝 Practice Assessment")
-            
-            # Mock assessment - in real app would be interactive
-            mock_responses = [
-                {"correct": True, "topic": "Azure Data Factory"},
-                {"correct": False, "topic": "Synapse Analytics"},
-                {"correct": True, "topic": "Data Storage"}
-            ]
-            
-            assessment_result = agents["assessment"].assess_knowledge(mock_responses)
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Practice Score", f"{assessment_result['score']}%")
-            with col2:
-                st.metric("Correct Answers", f"{assessment_result['correct_answers']}/{assessment_result['total_questions']}")
-            with col3:
-                st.metric("Readiness", assessment_result['readiness_score'])
-        
-        # Step 5: Predictor - Pass Probability (DIFFERENTIATOR)
-        with st.spinner("🔮 Calculating your pass probability (CertPilot AI)..."):
-            predictor_output = agents["predictor"].predict_pass_probability(
-                practice_score=assessment_result['score'],
-                study_hours=hours_per_week * 4,
-                meeting_hours=meeting_hours
-            )
-            
-            st.subheader("🔮 Success Prediction (CertPilot Differentiator)")
-            
-            # Create gauge chart
-            fig_gauge = go.Figure(go.Indicator(
-                mode="gauge+number+delta",
-                value=predictor_output['pass_probability'],
-                title={'text': "Pass Probability (%)"},
-                domain={'x': [0, 1], 'y': [0, 1]},
-                gauge={
-                    'axis': {'range': [0, 100]},
-                    'bar': {'color': "darkblue"},
-                    'steps': [
-                        {'range': [0, 50], 'color': "#ff2b2b"},
-                        {'range': [50, 75], 'color': "#ff9500"},
-                        {'range': [75, 100], 'color': "#09ab3b"}
-                    ],
-                    'threshold': {
-                        'line': {'color': "red", 'width': 4},
-                        'thickness': 0.75,
-                        'value': predictor_output['pass_threshold']
-                    }
-                }
-            ))
-            st.plotly_chart(fig_gauge, use_container_width=True)
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                risk_emoji = {"LOW": "✅", "MEDIUM": "⚠️", "HIGH": "❌"}
-                st.metric("Risk Assessment", f"{risk_emoji.get(predictor_output['risk_level'], '❓')} {predictor_output['risk_level']}")
-            
-            with col2:
-                st.metric("Predicted Score", f"{predictor_output['predicted_score']:.1f}%")
-            
-            st.info(f"💬 {predictor_output['recommendation']}")
-        
-        # Step 6: Critic - Validation
-        with st.spinner("🔍 Validating your plan..."):
-            critic_output = agents["critic"].validate_study_plan(planner_output)
-            readiness_check = agents["critic"].verify_readiness_criteria({
-                "practice_score": assessment_result['score'],
-                "hours_studied": hours_per_week * 4,
-                "weak_areas": assessment_result['weak_areas']
-            })
-            
-            st.subheader("✅ Plan Validation")
-            
-            if critic_output['is_valid']:
-                st.success("✓ Your study plan is realistic and achievable!")
-            else:
-                st.error("✗ Your plan needs adjustment")
-                for error in critic_output['errors']:
-                    st.error(f"  • {error}")
-            
-            for warning in critic_output['warnings']:
-                st.warning(f"  ⚠ {warning}")
-        
-        # Final Recommendation
-        st.divider()
-        st.subheader("🎯 Your Personalized Roadmap")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("**Key Metrics:**")
-            st.write(f"• Certification: {curator_output.get('certification')}")
-            st.write(f"• Study Duration: {planner_output['total_weeks']} weeks")
-            st.write(f"• Success Rate: {predictor_output['pass_probability']}%")
-            st.write(f"• Risk Level: {predictor_output['risk_level']}")
-        
-        with col2:
-            st.write("**Next Steps:**")
-            st.write(f"1. {engagement_output['recommendation']}")
-            st.write(f"2. Best study window: {study_window}")
-            if assessment_result['weak_areas']:
-                st.write(f"3. Focus on: {', '.join(assessment_result['weak_areas'])}")
-            st.write("4. Start with Week 1 topics immediately")
+st.markdown(
+    """
+    <style>
+    .block-container {padding-top: 1rem;}
+    .hero {
+        padding: 1.5rem 1.6rem;
+        border-radius: 24px;
+        background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 52%, #06b6d4 100%);
+        color: white;
+        margin-bottom: 1rem;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+    }
+    .hero h1 {margin: 0; font-size: 2.4rem; line-height: 1.05;}
+    .hero p {margin: 0.55rem 0 0 0; opacity: 0.92; max-width: 60ch;}
+    .surface {
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        border-radius: 18px;
+        padding: 1rem 1rem 0.5rem 1rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
-def manager_view():
-    """Manager View - Team-level insights"""
-    st.title("👔 Manager View - Team Certification Dashboard")
-    st.markdown("Get insights into your team's certification readiness")
-    
-    # Load sample data
-    sample_learners = [
-        {"learner_id": "L1001", "role": "Data Engineer", "practice_score": 72, "hours_studied": 18, "meeting_hours": 20, "risk_level": "MEDIUM"},
-        {"learner_id": "L1002", "role": "Data Engineer", "practice_score": 85, "hours_studied": 25, "meeting_hours": 15, "risk_level": "LOW"},
-        {"learner_id": "L1003", "role": "Cloud Architect", "practice_score": 65, "hours_studied": 12, "meeting_hours": 35, "risk_level": "HIGH"},
-        {"learner_id": "L1004", "role": "DevOps Engineer", "practice_score": 78, "hours_studied": 22, "meeting_hours": 18, "risk_level": "MEDIUM"},
-        {"learner_id": "L1005", "role": "AI/ML Specialist", "practice_score": 92, "hours_studied": 28, "meeting_hours": 10, "risk_level": "LOW"},
-    ]
-    
-    # Add learner data to manager agent
-    manager = agents["manager"]
-    for learner in sample_learners:
-        manager.add_learner_data(learner)
-    
-    # Team Readiness Report
-    st.subheader("📊 Team Readiness Report")
-    
-    readiness_report = manager.generate_team_readiness_report()
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Learners", readiness_report['total_learners'])
-    with col2:
-        st.metric("Ready (Low Risk)", readiness_report['low_risk_count'], delta="✓")
-    with col3:
-        st.metric("At Risk (Medium)", readiness_report['medium_risk_count'], delta="⚠")
-    with col4:
-        st.metric("High Risk", readiness_report['high_risk_count'], delta="❌")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Avg Practice Score", f"{readiness_report['average_score']:.1f}%")
-    with col2:
-        st.metric("Avg Study Hours", f"{readiness_report['average_study_hours']:.1f}h")
-    
-    # Risk Distribution Chart
-    st.subheader("📈 Risk Distribution")
-    
-    risk_data = {
-        "Risk Level": ["Low", "Medium", "High"],
-        "Count": [
-            readiness_report['low_risk_count'],
-            readiness_report['medium_risk_count'],
-            readiness_report['high_risk_count']
-        ],
-        "Color": ["#09ab3b", "#ff9500", "#ff2b2b"]
+@st.cache_resource
+def build_services() -> dict[str, Any]:
+    settings = load_settings()
+    repository = SyntheticDataRepository(settings)
+    orchestrator = CertificationWorkflowOrchestrator(repository=repository, settings=settings)
+    evaluation = EvaluationRunner(orchestrator=orchestrator, repository=repository, settings=settings)
+    return {
+        "settings": settings,
+        "repository": repository,
+        "orchestrator": orchestrator,
+        "evaluation": evaluation,
     }
-    
-    fig_risk = px.pie(
-        values=risk_data["Count"],
-        names=risk_data["Risk Level"],
-        color_discrete_sequence=risk_data["Color"],
-        title="Team Risk Distribution"
-    )
-    st.plotly_chart(fig_risk, use_container_width=True)
-    
-    # Skill Gap Analysis
-    st.subheader("🔍 Skill Gap Analysis")
-    
-    skill_gaps = manager.identify_skill_gaps()
-    
-    if skill_gaps['skill_gaps']:
-        gap_df = pd.DataFrame([
-            {"Skill": skill, "Learners Struggling": count}
-            for skill, count in skill_gaps['skill_gaps'].items()
-        ])
-        
-        fig_skills = px.bar(
-            gap_df,
-            x="Skill",
-            y="Learners Struggling",
-            title="Skills Where Team Struggles Most",
-            color="Learners Struggling",
-            color_continuous_scale="Reds"
+
+
+services = build_services()
+
+
+def kpi(label: str, value: str, delta: str | None = None) -> None:
+    st.metric(label, value, delta)
+
+
+def render_gauge(title: str, value: int, threshold: int) -> None:
+    chart = go.Figure(
+        go.Indicator(
+            mode="gauge+number",
+            value=value,
+            title={"text": title},
+            gauge={
+                "axis": {"range": [0, 100]},
+                "bar": {"color": "#0f766e"},
+                "steps": [
+                    {"range": [0, 60], "color": "#fee2e2"},
+                    {"range": [60, 80], "color": "#fef3c7"},
+                    {"range": [80, 100], "color": "#dcfce7"},
+                ],
+                "threshold": {"line": {"color": "#ef4444", "width": 4}, "thickness": 0.8, "value": threshold},
+            },
         )
-        st.plotly_chart(fig_skills, use_container_width=True)
-    
-    # High Risk Employees
-    st.subheader("⚠️ High Risk Employees - Intervention Needed")
-    
-    high_risk_data = manager.get_high_risk_employees()
-    
-    if high_risk_data['employees']:
-        risk_df = pd.DataFrame([
+    )
+    st.plotly_chart(chart, use_container_width=True)
+
+
+def build_request_from_controls() -> WorkflowRequest:
+    settings = services["settings"]
+    role = st.sidebar.selectbox("Role", ["Data Engineer", "Data Analyst"], index=0)
+    certification = st.sidebar.selectbox("Certification", ["DP-203", "PL-300"], index=0)
+    weekly_hours = st.sidebar.slider("Weekly Study Hours", settings.min_weekly_hours, settings.max_weekly_hours, settings.default_weekly_hours)
+    practice_score = st.sidebar.slider("Practice Score", 0, 100, settings.default_practice_score)
+    meeting_hours = st.sidebar.slider("Meeting Hours", 0, 30, settings.default_meeting_hours)
+    focus_hours = st.sidebar.slider("Focus Hours", 0, 30, settings.default_focus_hours)
+    exam_date = st.sidebar.date_input("Exam Date", date.today() + timedelta(days=settings.default_exam_days))
+
+    return WorkflowRequest(
+        learner_id="L-UI-001",
+        role=role,
+        certification=certification,
+        weekly_hours=weekly_hours,
+        practice_score=practice_score,
+        meeting_hours=meeting_hours,
+        focus_hours=focus_hours,
+        exam_date=exam_date.isoformat(),
+    )
+
+
+def employee_dashboard(result: WorkflowResult | None, request: WorkflowRequest) -> None:
+    st.markdown(
+        "<div class='hero'><h1>CertPilot X</h1><p>Enterprise certification intelligence for employees, managers, and auditors. The workflow maps role to certification, plans study time, adapts to workload, predicts success, and validates recommendations.</p></div>",
+        unsafe_allow_html=True,
+    )
+
+    left, right = st.columns([1.05, 1.6])
+    with left:
+        st.markdown("<div class='surface'>", unsafe_allow_html=True)
+        st.subheader("Learning Path Inputs")
+        st.write(f"Access role: **Employee**")
+        st.write(f"Current selection: **{request.role} / {request.certification}**")
+        st.write(f"Exam date: **{request.exam_date}**")
+        run_clicked = st.button("Run Reasoning Workflow", type="primary", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    if run_clicked:
+        try:
+            st.session_state.workflow_result = services["orchestrator"].execute(request)
+        except ValidationError as exc:
+            st.error(str(exc))
+            return
+
+    result = result or st.session_state.get("workflow_result")
+    if result is None:
+        st.info("Run the workflow to generate the employee learning path, planning output, readiness score, and critic review.")
+        return
+
+    with right:
+        st.markdown("<div class='surface'>", unsafe_allow_html=True)
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            kpi("Readiness", f"{result.prediction.readiness_score}")
+        with c2:
+            kpi("Pass Probability", f"{result.prediction.pass_probability}%")
+        with c3:
+            kpi("Risk Level", result.prediction.risk_level)
+        with c4:
+            kpi("Critic Confidence", f"{round(result.critic.confidence * 100)}%")
+
+        render_gauge("Employee Readiness", result.prediction.readiness_score, services["settings"].readiness_threshold)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    path_col, plan_col = st.columns(2)
+    with path_col:
+        st.subheader("Learning Path")
+        st.write(result.curator.explanation)
+        st.write(
             {
-                "Learner ID": emp["learner_id"],
-                "Practice Score": emp["practice_score"],
-                "Hours Studied": emp["hours_studied"],
-                "Reason": emp["reason"]
+                "role": result.curator.role,
+                "certification": result.curator.certification,
+                "skills": result.curator.skills,
+                "recommended_hours": result.curator.recommended_hours,
             }
-            for emp in high_risk_data['employees']
-        ])
-        st.dataframe(risk_df, use_container_width=True)
-        
-        # Intervention plan
-        st.subheader("📋 Recommended Interventions")
-        intervention = manager.generate_intervention_plan()
-        for intervention_item in intervention['interventions']:
-            st.write(f"• {intervention_item}")
-    else:
-        st.success("✓ No high-risk employees. Team is on track!")
-    
-    # Performance vs Workload
-    st.subheader("📊 Performance vs Workload Analysis")
-    
-    performance_df = pd.DataFrame(sample_learners)
-    
-    fig_scatter = px.scatter(
-        performance_df,
-        x="meeting_hours",
-        y="practice_score",
-        color="risk_level",
-        size="hours_studied",
-        hover_data=["learner_id"],
-        title="Practice Score vs Meeting Hours",
-        color_discrete_map={"LOW": "#09ab3b", "MEDIUM": "#ff9500", "HIGH": "#ff2b2b"},
-        labels={
-            "meeting_hours": "Weekly Meeting Hours",
-            "practice_score": "Practice Score (%)"
+        )
+
+        st.subheader("Recommended Next Actions")
+        actions = [
+            f"Study window: {result.engagement.best_study_window}",
+            f"Recommended study increase: {result.prediction.recommended_study_increase} hours",
+            f"Expected readiness improvement: {result.prediction.expected_readiness_improvement}",
+        ]
+        for action in actions:
+            st.write(f"• {action}")
+
+    with plan_col:
+        st.subheader("Adaptive Study Plan")
+        weeks_df = pd.DataFrame([week.to_dict() for week in result.study_plan.weeks])
+        st.dataframe(weeks_df, use_container_width=True, hide_index=True)
+        st.write(result.study_plan.plan_summary)
+        st.write(f"**Allocated hours:** {result.study_plan.allocated_hours} / {result.study_plan.recommended_hours}")
+
+    insight_col, validation_col = st.columns(2)
+    with insight_col:
+        st.subheader("Decision Explanations")
+        st.write(result.prediction.explanation)
+        st.write(result.engagement.explanation)
+    with validation_col:
+        st.subheader("Critic Review")
+        st.write(f"**Verdict:** {result.critic.verdict}")
+        st.write(f"**Confidence:** {round(result.critic.confidence * 100)}%")
+        st.write(f"**Issues:** {', '.join(result.critic.issues) if result.critic.issues else 'None'}")
+        st.write(f"**Warnings:** {', '.join(result.critic.warnings) if result.critic.warnings else 'None'}")
+        if result.critic.self_reflection:
+            st.caption("Self-reflection loop")
+            for note in result.critic.self_reflection:
+                st.write(f"• {note}")
+
+    trace_df = pd.DataFrame([step.to_dict() for step in result.trace])
+    st.subheader("Reasoning Snapshot")
+    st.plotly_chart(
+        px.bar(trace_df, x="agent", y="confidence", color="decision", text="decision", title="Agent Confidence by Step"),
+        use_container_width=True,
+    )
+
+
+def manager_dashboard() -> None:
+    st.markdown(
+        "<div class='hero'><h1>Manager Dashboard</h1><p>Certification pipeline visibility, risk concentration, skill gaps, and team-level readiness analytics.</p></div>",
+        unsafe_allow_html=True,
+    )
+
+    team_results, bundle = services["orchestrator"].analyze_team()
+    team_rows = [
+        {
+            "learner_id": result.request.learner_id,
+            "role": result.request.role,
+            "certification": result.request.certification,
+            "meeting_hours": result.request.meeting_hours,
+            "focus_hours": result.request.focus_hours,
+            "readiness_score": result.prediction.readiness_score,
+            "pass_probability": result.prediction.pass_probability,
+            "risk_level": result.prediction.risk_level,
+            "critic_verdict": result.critic.verdict,
         }
-    )
-    st.plotly_chart(fig_scatter, use_container_width=True)
-    
-    # Learner Details Table
-    st.subheader("📋 Detailed Learner Data")
-    st.dataframe(performance_df, use_container_width=True)
+        for result in team_results
+    ]
+    team_df = pd.DataFrame(team_rows)
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        kpi("Team Readiness", f"{bundle.team_readiness_pct}%")
+    with c2:
+        kpi("At-Risk Employees", str(len(bundle.at_risk_employees)))
+    with c3:
+        kpi("Coverage Tracks", str(len(bundle.certification_coverage)))
+    with c4:
+        kpi("Avg Confidence", f"{round(sum(r.critic.confidence for r in team_results) / max(1, len(team_results)) * 100)}%")
+
+    left, right = st.columns(2)
+    with left:
+        st.subheader("Risk Distribution")
+        risk_df = pd.DataFrame(list(bundle.risk_distribution.items()), columns=["risk", "count"])
+        st.plotly_chart(px.pie(risk_df, names="risk", values="count", title="Team Risk Distribution"), use_container_width=True)
+
+    with right:
+        st.subheader("Risk Heatmap")
+        st.plotly_chart(
+            px.density_heatmap(
+                team_df,
+                x="meeting_hours",
+                y="readiness_score",
+                color_continuous_scale="Reds",
+                nbinsx=6,
+                nbinsy=6,
+                title="Meeting Load vs Readiness",
+            ),
+            use_container_width=True,
+        )
+
+    coverage_col, skill_col = st.columns(2)
+    with coverage_col:
+        st.subheader("Certification Coverage")
+        coverage_df = pd.DataFrame(list(bundle.certification_coverage.items()), columns=["certification", "count"])
+        st.plotly_chart(px.bar(coverage_df, x="certification", y="count", text="count", title="Certification Coverage"), use_container_width=True)
+    with skill_col:
+        st.subheader("Skill Gap Analysis")
+        gap_df = pd.DataFrame(list(bundle.skill_gap_analysis.items()), columns=["skill", "count"]) if bundle.skill_gap_analysis else pd.DataFrame(columns=["skill", "count"])
+        if not gap_df.empty:
+            st.plotly_chart(px.bar(gap_df, x="skill", y="count", text="count", title="Team Skill Gaps"), use_container_width=True)
+        else:
+            st.success("No material skill gaps detected in this synthetic cohort.")
+
+    pipeline_df = pd.DataFrame(bundle.pipeline_summary)
+    st.subheader("Certification Pipeline")
+    st.plotly_chart(px.bar(pipeline_df, x="stage", y="count", text="count", title="Pipeline Progress"), use_container_width=True)
+
+    st.subheader("Recommended Interventions")
+    for intervention in bundle.recommended_interventions:
+        st.write(f"• {intervention}")
+
+    st.subheader("Team Readiness Table")
+    st.dataframe(team_df, use_container_width=True, hide_index=True)
 
 
-def main():
-    """Main app router"""
-    st.sidebar.title("🎯 CertPilot")
-    st.sidebar.markdown("Certification Success Platform")
-    
-    # Initialize session state
-    if "employee_generated" not in st.session_state:
-        st.session_state.employee_generated = False
-    
-    page = st.sidebar.radio(
-        "Select View",
-        ["Employee View", "Manager View"]
+def trace_dashboard() -> None:
+    st.markdown(
+        "<div class='hero'><h1>Agent Trace Dashboard</h1><p>Reasoning flow, critic validation, confidence scoring, and synthetic evaluation evidence for hackathon judges and future Azure AI Foundry integration.</p></div>",
+        unsafe_allow_html=True,
     )
-    
-    st.sidebar.divider()
-    st.sidebar.markdown("### 📊 About CertPilot")
-    st.sidebar.info(
-        """
-        **CertPilot** uses advanced AI agents to:
-        
-        ✅ Curate personalized learning paths  
-        📅 Create realistic study schedules  
-        ⚖️ Analyze work-life balance (Work IQ)  
-        📝 Assess knowledge gaps  
-        🔮 Predict certification success  
-        👔 Provide team insights  
-        ✓ Validate plans and readiness
-        """
-    )
-    
-    if page == "Employee View":
-        employee_view()
+
+    result: WorkflowResult | None = st.session_state.get("workflow_result")
+    if result is None:
+        st.info("Run the employee workflow first to generate a traceable reasoning path.")
     else:
-        manager_view()
+        trace_df = pd.DataFrame([step.to_dict() for step in result.trace])
+        st.subheader("Reasoning Flow")
+        st.dataframe(trace_df[["timestamp", "agent", "action", "confidence", "decision"]], use_container_width=True, hide_index=True)
+        st.subheader("Trace Confidence")
+        st.plotly_chart(px.line(trace_df, x="agent", y="confidence", markers=True, title="Agent Confidence Across the Workflow"), use_container_width=True)
+        st.subheader("Critic Validation")
+        st.write(f"**Verdict:** {result.critic.verdict}")
+        st.write(f"**Explanation:** {result.critic.explanation}")
+        st.write(f"**Self reflection:** {', '.join(result.self_reflection) if result.self_reflection else 'None'}")
+
+    st.subheader("Synthetic Evaluation Lab")
+    if st.button("Run Evaluation Suite"):
+        evaluation_report = services["evaluation"].run()
+        st.session_state.evaluation_report = evaluation_report
+
+    evaluation_report = st.session_state.get("evaluation_report")
+    if evaluation_report is not None:
+        st.write(evaluation_report.to_dict())
+
+
+def footer() -> None:
+    st.sidebar.markdown("### Access Mode")
+    access_mode = st.sidebar.selectbox("Role-based access", ["Employee", "Manager", "Auditor"], index=0)
+    st.sidebar.markdown("### Future Integration")
+    st.sidebar.write("Foundry IQ for knowledge grounding. Work IQ for workload-aware scheduling. Fabric IQ for semantic readiness analytics.")
+    st.sidebar.caption("MCP and Azure AI Foundry hooks are scaffolded in core/integration_hooks.py.")
+    return access_mode
+
+
+def main() -> None:
+    settings = services["settings"]
+    access_mode = footer()
+    page = st.sidebar.radio("Dashboard", ["Employee Dashboard", "Manager Dashboard", "Agent Trace Dashboard"])
+    request = build_request_from_controls()
+
+    if page == "Employee Dashboard":
+        employee_dashboard(st.session_state.get("workflow_result"), request)
+    elif page == "Manager Dashboard":
+        if access_mode == "Employee":
+            st.warning("Switch the access mode to Manager or Auditor to view team-level insights.")
+        manager_dashboard()
+    else:
+        if access_mode == "Employee":
+            st.info("Trace visibility is typically reserved for managers, auditors, and platform owners.")
+        trace_dashboard()
+
+    st.sidebar.divider()
+    st.sidebar.markdown("### Challenge Alignment")
+    st.sidebar.write("• Reasoning agents with planner, engagement, predictor, critic loops")
+    st.sidebar.write("• Synthetic data only")
+    st.sidebar.write("• Microsoft IQ mapping and Azure Foundry hooks")
 
 
 if __name__ == "__main__":

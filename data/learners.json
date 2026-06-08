@@ -1,9 +1,47 @@
 [
- {
-  "learner_id":"L1001",
-  "role":"Data Engineer",
-  "certification":"DP-203",
-  "practice_score":72,
-  "hours_studied":18
- }
+  {
+    "learner_id": "L-1001",
+    "employee_id": "EMP-001",
+    "role": "Data Engineer",
+    "certification": "DP-203",
+    "practice_score": 72,
+    "hours_studied": 18,
+    "weak_skills": ["Synapse"]
+  },
+  {
+    "learner_id": "L-1002",
+    "employee_id": "EMP-002",
+    "role": "Data Analyst",
+    "certification": "PL-300",
+    "practice_score": 84,
+    "hours_studied": 22,
+    "weak_skills": []
+  },
+  {
+    "learner_id": "L-1003",
+    "employee_id": "EMP-003",
+    "role": "Data Engineer",
+    "certification": "DP-203",
+    "practice_score": 65,
+    "hours_studied": 14,
+    "weak_skills": ["Data Factory", "Storage"]
+  },
+  {
+    "learner_id": "L-1004",
+    "employee_id": "EMP-004",
+    "role": "Data Analyst",
+    "certification": "PL-300",
+    "practice_score": 91,
+    "hours_studied": 27,
+    "weak_skills": []
+  },
+  {
+    "learner_id": "L-1005",
+    "employee_id": "EMP-005",
+    "role": "Data Engineer",
+    "certification": "DP-203",
+    "practice_score": 58,
+    "hours_studied": 12,
+    "weak_skills": ["Synapse", "Storage"]
+  }
 ]

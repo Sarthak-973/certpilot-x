@@ -1,0 +1,32 @@
+[
+  {
+    "learner_id": "T-1001",
+    "role": "Data Engineer",
+    "certification": "DP-203",
+    "practice_score": 72,
+    "weekly_hours": 10,
+    "meeting_hours": 18,
+    "focus_hours": 15,
+    "expected_risk": "Moderate Risk"
+  },
+  {
+    "learner_id": "T-1002",
+    "role": "Data Analyst",
+    "certification": "PL-300",
+    "practice_score": 84,
+    "weekly_hours": 12,
+    "meeting_hours": 14,
+    "focus_hours": 18,
+    "expected_risk": "Ready"
+  },
+  {
+    "learner_id": "T-1003",
+    "role": "Data Engineer",
+    "certification": "DP-203",
+    "practice_score": 58,
+    "weekly_hours": 8,
+    "meeting_hours": 25,
+    "focus_hours": 8,
+    "expected_risk": "High Risk"
+  }
+]

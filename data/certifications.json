@@ -1,7 +1,14 @@
 [
- {
-  "certification":"DP-203",
-  "recommended_hours":25,
-  "pass_threshold":75
- }
+  {
+    "role": "Data Engineer",
+    "certification": "DP-203",
+    "skills": ["Data Factory", "Synapse", "Storage"],
+    "recommended_hours": 25
+  },
+  {
+    "role": "Data Analyst",
+    "certification": "PL-300",
+    "skills": ["Power BI", "DAX", "Data Modeling"],
+    "recommended_hours": 20
+  }
 ]
